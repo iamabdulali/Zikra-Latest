@@ -363,3 +363,9 @@ body {
   font-size: 2rem;
   font-weight: 600;
 }
+
+.stopwatch-container {
+  position: absolute;
+  color: #fff;
+  display: none;
+}

@@ -1,3 +1,88 @@
+// Stopwatch
+
+let startBtn = document.getElementById("start");
+let stopBtn = document.getElementById("stop");
+let resetBtn = document.getElementById("reset");
+
+let hour = 0;
+let minute = 0;
+let second = 0;
+let count = 0;
+let startTime = "";
+let endTime = "";
+let totalTime = "";
+let hasTimerRan = false;
+
+startBtn.addEventListener("click", function () {
+  timer = true;
+  stopWatch();
+});
+
+stopBtn.addEventListener("click", function () {
+  timer = false;
+});
+
+resetBtn.addEventListener("click", function () {
+  timer = false;
+  hour = 0;
+  minute = 0;
+  second = 0;
+  count = 0;
+  document.getElementById("hr").innerHTML = "00";
+  document.getElementById("min").innerHTML = "00";
+  document.getElementById("sec").innerHTML = "00";
+  document.getElementById("count").innerHTML = "00";
+});
+
+function stopWatch() {
+  if (timer) {
+    count++;
+
+    if (count == 100) {
+      second++;
+      count = 0;
+    }
+
+    if (second == 60) {
+      minute++;
+      second = 0;
+    }
+
+    if (minute == 60) {
+      hour++;
+      minute = 0;
+      second = 0;
+    }
+
+    let hrString = hour;
+    let minString = minute;
+    let secString = second;
+    let countString = count;
+
+    if (hour < 10) {
+      hrString = "0" + hrString;
+    }
+
+    if (minute < 10) {
+      minString = "0" + minString;
+    }
+
+    if (second < 10) {
+      secString = "0" + secString;
+    }
+
+    if (count < 10) {
+      countString = "0" + countString;
+    }
+
+    document.getElementById("hr").innerHTML = hrString;
+    document.getElementById("min").innerHTML = minString;
+    document.getElementById("sec").innerHTML = secString;
+    document.getElementById("count").innerHTML = countString;
+    setTimeout(stopWatch, 10);
+  }
+}
+
 const paraDropdown = document.querySelector("#para-select");
 const ayatNumber = document.querySelector(".ayat-number"); // Ayat number element
 const suratName = document.querySelector(".surat-name"); // Surat name element
@@ -17,7 +102,7 @@ var rukuDropdown = document.getElementById("dynamic-dropdown-ruku");
 var sabaqRubaDropdown = document.querySelector("#sabaq-ruba");
 
 var requestUrl = "";
-let currentActive = 1;
+let currentActive = 0;
 let input;
 
 window.addEventListener("keydown", (e) => {
@@ -139,7 +224,7 @@ let divisionType = "";
 submitBtn.addEventListener("click", (event) => {
   const filteredDataDiv = document.querySelector(".content-div");
 
-  currentActive = 1;
+  currentActive = 0;
   let wordsArray = [];
   let surahNames = [];
   let ayahNumber = [];
@@ -223,7 +308,7 @@ submitBtn.addEventListener("click", (event) => {
             }
 
             var chunks = document.querySelectorAll(".chunk");
-            chunks[0].classList.add("active");
+            // chunks[0].classList.add("active");
             moveIndex(chunks, surahNames, resultArray, rukuhNoArray);
           })
           .catch((error) => console.error(error));
@@ -393,8 +478,14 @@ function convertToArabicNumber(number) {
   return arabicNumber;
 }
 
-let keydownHandler;
+const countSpan = document.getElementById("count");
+const secSpan = document.getElementById("sec");
+const minSpan = document.getElementById("min");
+const hrSpan = document.getElementById("hr");
 
+let keydownHandler;
+let isFirstKeypress = true; // Flag to track the first keypress
+let previousEndTime = "00:00:00:00";
 function moveIndex(chunks, surahNames, ayahNumbers, rukuhNo) {
   if (keydownHandler) {
     document.body.removeEventListener("keydown", keydownHandler);
@@ -402,8 +493,48 @@ function moveIndex(chunks, surahNames, ayahNumbers, rukuhNo) {
 
   keydownHandler = (event) => {
     if (event.keyCode === 37 || event.keyCode === 32) {
+      // Get the text content of each span
+      const countText = countSpan.textContent.trim();
+      const secText = secSpan.textContent.trim();
+      const minText = minSpan.textContent.trim();
+      const hrText = hrSpan.textContent.trim();
+      let formattedTime = `${hrText}:${minText}:${secText}:${countText}`;
+      formattedTime = formattedTime.trim();
       if (currentActive < chunks.length) {
-        currentActive++;
+        ayahText = currentActive++;
+
+        // Create a data object with the variables
+        const data = {
+          ayahText:
+            document.querySelectorAll(".chunk")[currentActive - 1].textContent,
+          startTime: isFirstKeypress ? "00:00:00:00" : previousEndTime,
+          endTime: formattedTime,
+        };
+
+        // Make the POST request with options
+        fetch("http://localhost:3000/data-collection", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error("Network response was not ok");
+            }
+            return response.json();
+          })
+          .then((data) => {
+            console.log("Response:", data);
+            previousEndTime = formattedTime;
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+          });
+
+        isFirstKeypress = false;
+
         update(chunks);
         updateSurahName(surahNames, ayahNumbers, rukuhNo);
       }
@@ -423,6 +554,15 @@ function moveIndex(chunks, surahNames, ayahNumbers, rukuhNo) {
 }
 
 function update(chunks) {
+  if (!hasTimerRan) {
+    timer = true;
+    stopWatch();
+    hasTimerRan = true;
+  }
+  startTime = document.querySelector("#sec").textContent;
+  endTime = document.querySelector("#min").textContent;
+  totalTime = `${endTime} : ${startTime}`;
+
   chunks.forEach((circle, idx) => {
     if (idx < currentActive) {
       circle.classList.add("active");
