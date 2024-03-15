@@ -443,19 +443,19 @@ submitBtn.addEventListener("click", (event) => {
 });
 
 function appendAyah(words, ayahNumber, contentDiv) {
-  words.forEach(function (word) {
+  if (words.length >= 1) {
+    // Append "ayahStop" to the last word
+    words[words.length - 1] += " " + convertToArabicNumber(ayahNumber);
+  }
+  words.forEach(function (word, index) {
     const newElem = document.createElement("span");
     newElem.innerText = word + " "; // Append each word with a space
-    newElem.className = "chunk";
+    newElem.className = "chunk"; // Add the "chunk" class to each word
+    if (index === words.length - 1) {
+      newElem.classList.add("ayahStopSign"); // Add the "ayahStop" class to the last word
+    }
     contentDiv.append(newElem);
   });
-
-  contentDiv.insertAdjacentHTML(
-    "beforeend",
-    `<span class = 'chunk ayahStop'> ${convertToArabicNumber(
-      ayahNumber
-    )}</span>`
-  );
 }
 
 function convertToArabicNumber(number) {
@@ -478,6 +478,24 @@ function convertToArabicNumber(number) {
   return arabicNumber;
 }
 
+function timeToMilliseconds(time) {
+  // Split the time string into hours, minutes, seconds, and milliseconds
+  let timeArray = time.split(":");
+  let hours = parseInt(timeArray[0]);
+  let minutes = parseInt(timeArray[1]);
+  let seconds = parseInt(timeArray[2]);
+  let milliseconds = parseInt(timeArray[3]);
+
+  // Calculate total milliseconds
+  let totalMilliseconds =
+    hours * 60 * 60 * 1000 +
+    minutes * 60 * 1000 +
+    seconds * 1000 +
+    milliseconds;
+
+  return totalMilliseconds;
+}
+
 const countSpan = document.getElementById("count");
 const secSpan = document.getElementById("sec");
 const minSpan = document.getElementById("min");
@@ -485,7 +503,7 @@ const hrSpan = document.getElementById("hr");
 
 let keydownHandler;
 let isFirstKeypress = true; // Flag to track the first keypress
-let previousEndTime = "00:00:00:00";
+let previousEndTime = timeToMilliseconds("00:00:00:00");
 function moveIndex(chunks, surahNames, ayahNumbers, rukuhNo) {
   if (keydownHandler) {
     document.body.removeEventListener("keydown", keydownHandler);
@@ -498,8 +516,9 @@ function moveIndex(chunks, surahNames, ayahNumbers, rukuhNo) {
       const secText = secSpan.textContent.trim();
       const minText = minSpan.textContent.trim();
       const hrText = hrSpan.textContent.trim();
-      let formattedTime = `${hrText}:${minText}:${secText}:${countText}`;
+      let formattedTime = `${hrText}:${minText}:${secText},${countText}`;
       formattedTime = formattedTime.trim();
+      console.log(formattedTime);
       if (currentActive < chunks.length) {
         ayahText = currentActive++;
 
@@ -609,7 +628,7 @@ function getRanges(arr) {
 }
 
 function updateSurahName(array, ayahArray, rukuArray) {
-  const activeAyahStops = document.querySelectorAll(".ayahStop.active");
+  const activeAyahStops = document.querySelectorAll(".ayahStopSign.active");
   const numActiveAyahStops = activeAyahStops.length;
 
   if (numActiveAyahStops > 0) {
@@ -649,5 +668,105 @@ document.addEventListener("keydown", (event) => {
       var fontSize = parseFloat(style);
       el.style.fontSize = fontSize - 5 + "px";
     });
+  }
+});
+
+const getAudioName = () => {
+  const currentDate = new Date();
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth() + 1; // Months are zero-indexed
+  const day = currentDate.getDate();
+  return `ZikraClass_${day}_${month}_${year}`;
+};
+
+// Recording
+
+let mediaRecorder;
+let chunks = [];
+let recording = false;
+
+document
+  .getElementById("startRecording")
+  .addEventListener("click", startRecording);
+document
+  .getElementById("stopRecording")
+  .addEventListener("click", stopRecording);
+
+function startRecording() {
+  navigator.mediaDevices
+    .getUserMedia({
+      audio: true,
+    })
+    .then(function (stream) {
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = function (e) {
+        chunks.push(e.data);
+      };
+      mediaRecorder.onstop = function () {
+        const blob = new Blob(chunks, {
+          type: "audio/wav",
+        });
+        const audioContext = new AudioContext();
+        const reader = new FileReader();
+        reader.onload = function () {
+          audioContext.decodeAudioData(reader.result, function (buffer) {
+            const encoder = new lamejs.Mp3Encoder(1, buffer.sampleRate, 128);
+            let mp3Data = [];
+            const samples = buffer.getChannelData(0);
+            const bufferLength = buffer.length;
+            for (let i = 0; i < bufferLength; i++) {
+              const sample = Math.min(1, Math.max(-1, samples[i]));
+              const sample16 = sample * 0x7fff;
+              mp3Data.push(encoder.encodeBuffer(new Int16Array([sample16])));
+            }
+            mp3Data.push(encoder.flush());
+            const blob = new Blob(mp3Data, {
+              type: "audio/mp3",
+            });
+            const audioURL = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            document.body.appendChild(a);
+            a.style = "display: none";
+            a.href = audioURL;
+            a.download = getAudioName();
+            a.click();
+            window.URL.revokeObjectURL(audioURL);
+          });
+        };
+        reader.readAsArrayBuffer(blob);
+      };
+      mediaRecorder.start();
+      recording = true;
+      document.getElementById("startRecording").disabled = true;
+      document.getElementById("stopRecording").disabled = false;
+    })
+    .catch(function (err) {
+      console.error("Error accessing microphone", err);
+    });
+}
+
+function stopRecording() {
+  if (recording) {
+    mediaRecorder.stop();
+    recording = false;
+    document.getElementById("startRecording").disabled = false;
+    document.getElementById("stopRecording").disabled = true;
+  }
+}
+
+document.addEventListener("keydown", function (event) {
+  if (event.keyCode === 37 && !recording) {
+    // Left arrow key
+    startRecording();
+  } else if (event.key === "s" && recording) {
+    // 's' key
+    stopRecording();
+  }
+});
+
+window.addEventListener("beforeunload", function (event) {
+  if (recording) {
+    event.preventDefault();
+    event.returnValue = "";
   }
 });

@@ -26,6 +26,10 @@ body {
   height: 105vh;
 }
 
+.record-btns {
+  display: none;
+}
+
 .wrapper {
   display: flex;
   flex-direction: column;
@@ -79,6 +83,10 @@ body {
   color: #fff;
   transition: 0.3s ease-in-out all;
   margin-right: 10px;
+}
+
+.ayahStop {
+  display: none !important;
 }
 
 .active {
